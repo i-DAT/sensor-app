@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:osc/osc.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
 void main() {
@@ -33,16 +35,18 @@ class _SensorState extends State<Sensor> {
 
   @override
   void initState() {
-    // Subscribe to accelerometer events
     super.initState();
+
+    // Subscribe to accelerometer events
     const sensorInterval = SensorInterval.normalInterval;
 
     _streamSubscriptions.add(
       userAccelerometerEventStream(samplingPeriod: sensorInterval).listen(
-        (UserAccelerometerEvent event) {
+        (UserAccelerometerEvent ev) {
           setState(() {
-            _userAccelerometerEvent = event;
+            _userAccelerometerEvent = ev;
           });
+          oscData("accelerometer", ev.x, ev.y, ev.z);
         },
         onError: sensorError("Accelerometer"),
         cancelOnError: true,
@@ -51,10 +55,11 @@ class _SensorState extends State<Sensor> {
 
     _streamSubscriptions.add(
       gyroscopeEventStream(samplingPeriod: sensorInterval).listen(
-        (GyroscopeEvent event) {
+        (GyroscopeEvent ev) {
           setState(() {
-            _gyroscopeEvent = event;
+            _gyroscopeEvent = ev;
           });
+          oscData("gyroscope", ev.x, ev.y, ev.z);
         },
         onError: sensorError("Gyroscope"),
         cancelOnError: true,
@@ -63,10 +68,11 @@ class _SensorState extends State<Sensor> {
 
     _streamSubscriptions.add(
       magnetometerEventStream(samplingPeriod: sensorInterval).listen(
-        (MagnetometerEvent event) {
+        (MagnetometerEvent ev) {
           setState(() {
-            _magnetometerEvent = event;
+            _magnetometerEvent = ev;
           });
+          oscData("magnetometer", ev.x, ev.y, ev.z);
         },
         onError: sensorError("Magnetometer"),
         cancelOnError: true,
@@ -84,6 +90,13 @@ class _SensorState extends State<Sensor> {
         ),
       );
     };
+  }
+
+  void oscData(String address, double x, double y, double z) {
+    RawDatagramSocket.bind(InternetAddress.anyIPv4, 0).then((socket) {
+      final message = OSCMessage("/$address", arguments: [x, y, z]);
+      socket.send(message.toBytes(), InternetAddress("192.168.77.233"), 8000);
+    });
   }
 
   @override

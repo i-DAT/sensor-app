@@ -9,6 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  osc: ^1.0.0
   sensors_plus: ^6.1.1
 
 dev_dependencies:
