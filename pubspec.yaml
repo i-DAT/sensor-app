@@ -9,8 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_rotation_sensor: ^0.1.1
   osc: ^1.0.0
-  sensors_plus: ^6.1.1
 
 dev_dependencies:
   flutter_test:
