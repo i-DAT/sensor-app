@@ -62,17 +62,18 @@ class _SensorState extends State<Sensor> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text("Rotation Sensor Data"),
-              Text("X: ${data.pitch.toStringAsFixed(2)}"),
-              Text("Y: ${data.roll.toStringAsFixed(2)}"),
-              Text("Z: ${data.azimuth.toStringAsFixed(2)}"),
-              const SizedBox(height: 80),
+              Text(
+                "${data.pitch.toStringAsFixed(2)} | ${data.roll.toStringAsFixed(2)} | ${data.azimuth.toStringAsFixed(2)}",
+              ),
+              SizedBox(height: 15),
               SizedBox(
-                width: 200,
+                width: 180,
                 child: TextField(
                   decoration: InputDecoration(
-                    labelText: "Enter OSC Address",
-                    errorText: valid ? null : "Invalid address",
+                    labelText: "Host address",
+                    errorText: valid || address.isEmpty
+                        ? null
+                        : "Couldn't connect",
                     border: OutlineInputBorder(),
                   ),
                   onSubmitted: (value) {
