@@ -17,7 +17,7 @@ When a host address is entered, the app will send the sensor data to that host u
 It is configured to send packets to port 8000 in the format `/rotation float float float`.
 
 The device must be on the same network as the host (note, many networks such as Eduroam will block OSC messages).
-To find the host's address, run `ipconfig/all` in a windows command prompt or `ip a` in a Linux shell and look for the ipv4 address of the form `192.168.xxx.xxx`.
+To find the host's address, run `ipconfig` in a windows command prompt or `ip a` in a Linux shell and look for the ipv4 address, usually of the form `192.168.xxx.xxx`.
 
 Finally, run a server on the host device to receive incoming messages.
 The simplest server, for testing, is a Python script such as:
