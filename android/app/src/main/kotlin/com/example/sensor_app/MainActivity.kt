@@ -5,6 +5,8 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.os.PowerManager
+import android.os.Bundle
 import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -13,13 +15,14 @@ import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 import java.nio.ByteBuffer
-import java.nio.ByteOrder   
+import java.nio.ByteOrder
 
 class MainActivity : FlutterActivity(), SensorEventListener {
 
     private lateinit var sensorManager: SensorManager
     private var sensor: Sensor? = null
     private lateinit var udpThread: Thread
+    private lateinit var wakeLock: PowerManager.WakeLock
 
     @Volatile
     private var ip: String? = null
@@ -86,8 +89,19 @@ class MainActivity : FlutterActivity(), SensorEventListener {
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK, "SensorApp::WakeLock")
+        wakeLock.acquire()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        if (wakeLock.isHeld) {
+            wakeLock.release()
+        }
         sensorManager.unregisterListener(this)
     }
 }

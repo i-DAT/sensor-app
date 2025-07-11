@@ -44,4 +44,5 @@
     </queries>
 
        <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" />
+       <uses-permission android:name="android.permission.WAKE_LOCK" />
 </manifest>
