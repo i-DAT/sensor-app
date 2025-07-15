@@ -16,6 +16,7 @@ import java.net.DatagramSocket
 import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.io.ByteArrayOutputStream
 
 class MainActivity : FlutterActivity(), SensorEventListener {
 
@@ -50,23 +51,9 @@ class MainActivity : FlutterActivity(), SensorEventListener {
                 while (true) {
                     Thread.sleep(1)
                     if (ip == null) continue;
+                    val d = osc("/rotation", arrayOf(rotation.x, rotation.y, rotation.z))
+                    val packet = DatagramPacket(d, d.size, InetAddress.getByName(ip), 8000)
                     try {
-                        // TODO: hard coding OSC messages is messy
-                        val address = byteArrayOf(
-                            0x2F, 0x72, 0x6F, 0x74,  // "/rot"
-                            0x61, 0x74, 0x69, 0x6F,  // "atio"
-                            0x6E, 0x00, 0x00, 0x00   // "n\0\0\0"
-                        )
-                        val typeTag = byteArrayOf(
-                            0x2C, 0x66, 0x66, 0x66,  // ",fff"
-                            0x00, 0x00, 0x00, 0x00   // "\0\0\0\0"
-                        )
-                        val floatBuffer = ByteBuffer.allocate(12).order(ByteOrder.BIG_ENDIAN)
-                        floatBuffer.putFloat(rotation.x)
-                        floatBuffer.putFloat(rotation.y)
-                        floatBuffer.putFloat(rotation.z)
-                        val data = address + typeTag + floatBuffer.array()
-                        val packet = DatagramPacket(data, data.size, InetAddress.getByName(ip), 8000)
                         udpSocket?.send(packet)
                     } catch (e: Exception) {
                         Log.e("UDP", "Send failed: ${e}")
@@ -103,6 +90,36 @@ class MainActivity : FlutterActivity(), SensorEventListener {
             wakeLock.release()
         }
         sensorManager.unregisterListener(this)
+    }
+
+    fun osc(addr: String, args: Array<Any>): ByteArray {
+        val out = ByteArrayOutputStream()
+
+        oscString(out, addr)
+        oscString(out, args.map { oscType(it) }.joinToString(""))
+        for (arg in args) when (arg) {
+            is String -> oscString(out, arg)
+            is Float -> out.write(ByteBuffer.allocate(4).putFloat(arg).array())
+            is Int -> out.write(ByteBuffer.allocate(4).putInt(arg).array())
+        }
+    
+        return out.toByteArray()
+    }
+
+    fun oscString(out: ByteArrayOutputStream, str: String) {
+        val bytes = str.toByteArray()
+        out.write(bytes, 0, bytes.size)
+        out.write(0)
+        repeat((4 - (bytes.size + 1) % 4) % 4) { out.write(0) }
+    }
+
+    fun oscType(x: Any): Char {
+        return when (x) {
+            is String -> 's'
+            is Int -> 'i'
+            is Float -> 'f'
+            else -> error("Invalid OSC argument type")
+        }
     }
 }
 
