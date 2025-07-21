@@ -1,10 +1,12 @@
 package org.idat.sensors
 
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
-import kotlin.reflect.KProperty
 
-fun serialize(obj: Any): ByteArray {
+data class Message(val address: String, val args: Array<Any>)
+
+fun serialize(msg: Message): ByteArray {
     val stream = ByteArrayOutputStream()
 
     fun writeString(str: String) {
@@ -14,34 +16,48 @@ fun serialize(obj: Any): ByteArray {
         repeat((4 - (bytes.size + 1) % 4) % 4) { stream.write(0) }
     }
 
-    fun typeCode(obj: Any): Char? {
-        return when (obj) {
+    writeString("/" + msg.address)
+    writeString(msg.args.map {
+        when (it) {
             is String -> 's'
             is Float -> 'f'
             is Int -> 'i'
             else -> null
         }
-    }
-
-    fun String.toSnakeCase(): String {
-        return this.replace(Regex("([a-z])([A-Z])"), "$1_$2")
-            .replace(Regex("([A-Z])([A-Z][a-z])"), "$1_$2")
-            .lowercase()
-    }
-
-
-    val props = obj::class.members
-        .filterIsInstance<KProperty<*>>()
-        .map { it.getter.call(obj)!! }
-
-    writeString(obj::class.simpleName!!.toSnakeCase())
-    writeString(props.map { typeCode(it) }.joinToString(prefix=",", separator = ""))
-    for (p in props) when (p) {
-        is String -> writeString(p)
-        is Float -> stream.write(ByteBuffer.allocate(4).putFloat(p).array())
-        is Int -> stream.write(ByteBuffer.allocate(4).putInt(p).array())
-        else -> error("Invalid field $p")
+    }.joinToString(prefix = ",", separator = ""))
+    for (a in msg.args) when (a) {
+        is String -> writeString(a)
+        is Float -> stream.write(ByteBuffer.allocate(4).putFloat(a).array())
+        is Int -> stream.write(ByteBuffer.allocate(4).putInt(a).array())
+        else -> error("Invalid argument $a")
     }
 
     return stream.toByteArray()
 }
+
+fun deserialize(buf: ByteArray): Message {
+    val stream = ByteArrayInputStream(buf)
+
+    fun readString(): String {
+        val out = ByteArrayOutputStream()
+        while (true) {
+            val b = stream.read()
+            if (b == 0 || b == -1) break
+            out.write(b)
+        }
+        stream.readNBytes((4 - (out.size() + 1) % 4) % 4)
+        return out.toString()
+    }
+
+    val address = readString().drop(1)
+    val args = mutableListOf<Any>()
+    val types = readString()
+    for (c in types) when (c) {
+        ',' -> {}
+        's' -> args.add(readString())
+        'f' -> args.add(ByteBuffer.allocate(4).put(stream.readNBytes(4)).float)
+        'i' -> args.add(ByteBuffer.allocate(4).put(stream.readNBytes(4)).int)
+    }
+    return Message(address, args.toTypedArray())
+}
+

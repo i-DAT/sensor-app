@@ -8,31 +8,32 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import org.idat.sensors.ui.theme.SensorsTheme
 import java.io.IOException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
-import java.util.concurrent.BlockingQueue
+import java.net.MulticastSocket
 
 class MainActivity : ComponentActivity() {
-    lateinit var outBuffer: RingBuffer<Any>
+    lateinit var outBuffer: RingBuffer<Message>
+    lateinit var inBuffer: RingBuffer<Message>
 
     @Volatile
-    var ip: String? = "10.254.161.3"
+    var address: InetAddress? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         outBuffer = RingBuffer(128)
+        inBuffer = RingBuffer(128)
+        Thread(::discover).start()
         Thread(::send).start()
         setContent {
             SensorsTheme {
@@ -47,35 +48,58 @@ class MainActivity : ComponentActivity() {
         DatagramSocket().use { sock ->
             while (true) {
                 val data = outBuffer.take()
-                Log.d("SEND", "Got data")
-                if (ip == null) continue;
+                if (address == null) continue;
                 val packet = serialize(data)
                 try {
-                    sock.send(DatagramPacket(packet, packet.size, InetAddress.getByName(ip), 8000))
-                    Log.d("SEND", "Sent")
+                    sock.send(DatagramPacket(packet, packet.size, address, 8000))
                 } catch (e: IOException) {
                     Log.e("UDP", e.toString())
                 }
             }
         }
     }
+
+    fun discover() {
+        MulticastSocket(4001).use { sock ->
+            sock.joinGroup(InetAddress.getByName("239.255.255.250"))
+            val buf = ByteArray(128)
+            val packet = DatagramPacket(buf, buf.size)
+            while (true) {
+                sock.receive(packet)
+                val msg = deserialize(buf.copyOf(packet.length))
+                if (msg.address == "host") {
+                    address = InetAddress.getByName(msg.args[0] as String)
+                    break
+                }
+            }
+        }
+
+        receive()
+    }
+
+    fun receive() {
+        DatagramSocket().use { sock ->
+            val buf = ByteArray(1024)
+            while (true) {
+                val packet = DatagramPacket(buf, 1024, address, 8000)
+                sock.receive(packet)
+                inBuffer.put(deserialize(buf.copyOf(packet.length)))
+            }
+        }
+    }
 }
 
 @Composable
-fun MsgButton(buffer: RingBuffer<Any>) {
-
-
+fun MsgButton(buffer: RingBuffer<Message>) {
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Button(onClick = {
-            buffer.put(ExampleMsg(5.3f, "bar"))
+            buffer.put(Message("example_msg", arrayOf(3.5f, "bar")))
         }) {
             Text("Click Me")
         }
     }
 }
-
-data class ExampleMsg(val foo: Float, val bar: String)
