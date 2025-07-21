@@ -4,7 +4,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 
-data class Message(val address: String, val args: Array<Any>)
+data class Message(val address: String, val args: Array<Any> = arrayOf())
 
 fun serialize(msg: Message): ByteArray {
     val stream = ByteArrayOutputStream()

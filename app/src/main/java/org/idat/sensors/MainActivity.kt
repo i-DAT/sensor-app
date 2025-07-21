@@ -9,6 +9,8 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +25,8 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import org.idat.sensors.ui.theme.SensorsTheme
 import java.io.IOException
@@ -61,7 +65,8 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(padding),
+                            .padding(padding)
+                            .then(gestureModifier()),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
@@ -135,4 +140,27 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
+    fun gestureModifier(): Modifier {
+        val args = { offset: Offset -> arrayOf(offset.x, offset.y) as Array<Any> }
+        return Modifier
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { outBuffer.put(Message("drag_start", args(it))) },
+                    onDragEnd = { outBuffer.put(Message("drag_end")) },
+                    onDragCancel = { outBuffer.put(Message("drag_end")) },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        outBuffer.put(Message("drag", args(change.position)))
+                    },
+                )
+            }
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { outBuffer.put(Message("single_tap")) },
+                    onDoubleTap = { outBuffer.put(Message("double_tap")) },
+                    onLongPress = { outBuffer.put(Message("long_press")) },
+                )
+            }
+    }
 }
