@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                         verticalArrangement = Arrangement.Center
                     ) {
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth(0.8f),
                             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
                         ) {
                             Text(
