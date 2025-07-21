@@ -1,5 +1,10 @@
 package org.idat.sensors
 
+import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -21,20 +26,29 @@ import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.MulticastSocket
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), SensorEventListener {
     lateinit var outBuffer: RingBuffer<Message>
     lateinit var inBuffer: RingBuffer<Message>
 
     @Volatile
     var address: InetAddress? = null
 
+    private lateinit var sensorManager: SensorManager
+    private var sensor: Sensor? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
         outBuffer = RingBuffer(128)
         inBuffer = RingBuffer(128)
         Thread(::discover).start()
         Thread(::send).start()
+
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+        sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_FASTEST)
+
         setContent {
             SensorsTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -87,6 +101,17 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onSensorChanged(event: SensorEvent?) {
+        event ?: return
+        val rotationMatrix = FloatArray(9)
+        SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values);
+        val orientation = FloatArray(3)
+        SensorManager.getOrientation(rotationMatrix, orientation)
+        outBuffer.put(Message("rotation", arrayOf(orientation[0], orientation[1], orientation[2])))
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 }
 
 @Composable
