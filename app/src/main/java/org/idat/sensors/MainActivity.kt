@@ -1,6 +1,5 @@
 package org.idat.sensors
 
-import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -13,12 +12,18 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import org.idat.sensors.ui.theme.SensorsTheme
 import java.io.IOException
 import java.net.DatagramPacket
@@ -32,6 +37,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     @Volatile
     var address: InetAddress? = null
+    var message: MutableState<String> = mutableStateOf("Waiting for host...")
 
     private lateinit var sensorManager: SensorManager
     private var sensor: Sensor? = null
@@ -45,14 +51,31 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         Thread(::discover).start()
         Thread(::send).start()
 
-        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
         sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_FASTEST)
 
         setContent {
             SensorsTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    MsgButton(outBuffer)
+                Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+                        ) {
+                            Text(
+                                text = message.value,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -62,7 +85,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         DatagramSocket().use { sock ->
             while (true) {
                 val data = outBuffer.take()
-                if (address == null) continue;
+                if (address == null) continue
                 val packet = serialize(data)
                 try {
                     sock.send(DatagramPacket(packet, packet.size, address, 8000))
@@ -83,11 +106,11 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                 val msg = deserialize(buf.copyOf(packet.length))
                 if (msg.address == "host") {
                     address = InetAddress.getByName(msg.args[0] as String)
+                    runOnUiThread { message.value = "Connected to ${msg.args[1] as String}" }
                     break
                 }
             }
         }
-
         receive()
     }
 
@@ -105,26 +128,11 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     override fun onSensorChanged(event: SensorEvent?) {
         event ?: return
         val rotationMatrix = FloatArray(9)
-        SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values);
+        SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
         val orientation = FloatArray(3)
         SensorManager.getOrientation(rotationMatrix, orientation)
         outBuffer.put(Message("rotation", arrayOf(orientation[0], orientation[1], orientation[2])))
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-}
-
-@Composable
-fun MsgButton(buffer: RingBuffer<Message>) {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Button(onClick = {
-            buffer.put(Message("example_msg", arrayOf(3.5f, "bar")))
-        }) {
-            Text("Click Me")
-        }
-    }
 }
