@@ -2,12 +2,14 @@ package org.idat.sensors
 
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
-import java.nio.ByteBuffer
+import java.io.DataInputStream
+import java.io.DataOutputStream
 
 data class Message(val address: String, val args: Array<Any> = arrayOf())
 
 fun serialize(msg: Message): ByteArray {
-    val stream = ByteArrayOutputStream()
+    val s = ByteArrayOutputStream()
+    val stream = DataOutputStream(s)
 
     fun writeString(str: String) {
         val bytes = str.toByteArray()
@@ -27,16 +29,16 @@ fun serialize(msg: Message): ByteArray {
     }.joinToString(prefix = ",", separator = ""))
     for (a in msg.args) when (a) {
         is String -> writeString(a)
-        is Float -> stream.write(ByteBuffer.allocate(4).putFloat(a).array())
-        is Int -> stream.write(ByteBuffer.allocate(4).putInt(a).array())
+        is Float -> stream.writeFloat(a)
+        is Int -> stream.writeInt(a)
         else -> error("Invalid argument $a")
     }
 
-    return stream.toByteArray()
+    return s.toByteArray()
 }
 
 fun deserialize(buf: ByteArray): Message {
-    val stream = ByteArrayInputStream(buf)
+    val stream = DataInputStream(ByteArrayInputStream(buf))
 
     fun readString(): String {
         val out = ByteArrayOutputStream()
@@ -55,8 +57,8 @@ fun deserialize(buf: ByteArray): Message {
     for (c in types) when (c) {
         ',' -> {}
         's' -> args.add(readString())
-        'f' -> args.add(ByteBuffer.allocate(4).put(stream.readNBytes(4)).float)
-        'i' -> args.add(ByteBuffer.allocate(4).put(stream.readNBytes(4)).int)
+        'f' -> args.add(stream.readFloat())
+        'i' -> args.add(stream.readInt())
     }
     return Message(address, args.toTypedArray())
 }
