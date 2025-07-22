@@ -40,7 +40,11 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     lateinit var inBuffer: RingBuffer<Message>
 
     @Volatile
-    var address: InetAddress? = null
+    lateinit var address: InetAddress
+
+    @Volatile
+    var port: Int = 0
+
     var message: MutableState<String> = mutableStateOf("Waiting for host...")
 
     private lateinit var sensorManager: SensorManager
@@ -53,7 +57,6 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         outBuffer = RingBuffer(128)
         inBuffer = RingBuffer(128)
         Thread(::discover).start()
-        Thread(::send).start()
 
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
@@ -86,21 +89,6 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         }
     }
 
-    fun send() {
-        DatagramSocket().use { sock ->
-            while (true) {
-                val data = outBuffer.take()
-                if (address == null) continue
-                val packet = serialize(data)
-                try {
-                    sock.send(DatagramPacket(packet, packet.size, address, 8000))
-                } catch (e: IOException) {
-                    Log.e("UDP", e.toString())
-                }
-            }
-        }
-    }
-
     fun discover() {
         MulticastSocket(4001).use { sock ->
             sock.joinGroup(InetAddress.getByName("239.255.255.250"))
@@ -109,21 +97,38 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             while (true) {
                 sock.receive(packet)
                 val msg = deserialize(buf.copyOf(packet.length))
+                Log.d("OSC", "Discover $msg")
                 if (msg.address == "host") {
-                    address = InetAddress.getByName(msg.args[0] as String)
                     runOnUiThread { message.value = "Connected to ${msg.args[1] as String}" }
+                    address = InetAddress.getByName(msg.args[1] as String)
+                    port = msg.args[2] as Int
                     break
                 }
             }
         }
+        Thread(::send).start()
         receive()
+    }
+
+    fun send() {
+        DatagramSocket().use { sock ->
+            while (true) {
+                val data = outBuffer.take()
+                val packet = serialize(data)
+                try {
+                    sock.send(DatagramPacket(packet, packet.size, address, port))
+                } catch (e: IOException) {
+                    Log.e("UDP", e.toString())
+                }
+            }
+        }
     }
 
     fun receive() {
         DatagramSocket().use { sock ->
             val buf = ByteArray(1024)
             while (true) {
-                val packet = DatagramPacket(buf, 1024, address, 8000)
+                val packet = DatagramPacket(buf, 1024, address, port)
                 sock.receive(packet)
                 inBuffer.put(deserialize(buf.copyOf(packet.length)))
             }
